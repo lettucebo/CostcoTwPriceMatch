@@ -63,6 +63,32 @@ meRouter.patch('/notifications', async (c) => {
   return c.json({ ok: true })
 })
 
+meRouter.patch('/link/line', async (c) => {
+  const userId = c.get('userId')
+  const { line_user_id } = (await c.req.json()) as { line_user_id?: string | null }
+  await c.env.DB
+    .prepare(
+      `UPDATE users SET line_user_id = ?, updated_at = datetime('now') WHERE id = ?`,
+    )
+    .bind(line_user_id || null, userId)
+    .run()
+  return c.json({ ok: true })
+})
+
+meRouter.patch('/link/telegram', async (c) => {
+  const userId = c.get('userId')
+  const { telegram_chat_id } = (await c.req.json()) as {
+    telegram_chat_id?: string | null
+  }
+  await c.env.DB
+    .prepare(
+      `UPDATE users SET telegram_chat_id = ?, updated_at = datetime('now') WHERE id = ?`,
+    )
+    .bind(telegram_chat_id || null, userId)
+    .run()
+  return c.json({ ok: true })
+})
+
 meRouter.delete('/', async (c) => {
   const userId = c.get('userId')
   await c.env.DB.prepare('DELETE FROM users WHERE id = ?').bind(userId).run()

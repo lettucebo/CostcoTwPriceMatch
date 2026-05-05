@@ -5,12 +5,14 @@ import type {
   UserRow,
 } from '@costco/shared'
 import { emailNotifier } from './email.js'
+import { lineNotifier } from './line.js'
+import { telegramNotifier } from './telegram.js'
 import type { Notifier, NotifyResult } from './notifier.js'
 
 /**
- * Notifier registry. Issue #11 will add LINE + Telegram; #14 adds Web Push.
+ * Notifier registry. Web Push is added in #14.
  */
-const ALL_NOTIFIERS: Notifier[] = [emailNotifier]
+const ALL_NOTIFIERS: Notifier[] = [emailNotifier, lineNotifier, telegramNotifier]
 
 export interface DispatchOptions {
   /** Skip de-duplication when set (e.g., user-triggered test send). */
