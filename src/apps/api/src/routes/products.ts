@@ -1,7 +1,11 @@
 import { Hono } from 'hono'
 import type { AppContext } from '../env.js'
 import { requireAuth } from '../auth/middleware.js'
-import type { ProductRow, PriceHistoryRow } from '@costco/shared'
+import {
+  ProductHistoryDaysQuerySchema,
+  type ProductRow,
+  type PriceHistoryRow,
+} from '@costco/shared'
 
 export const productsRouter = new Hono<AppContext>()
 
@@ -24,7 +28,14 @@ productsRouter.get('/:code', async (c) => {
 
 productsRouter.get('/:code/history', async (c) => {
   const code = c.req.param('code')
-  const days = Math.min(Number(c.req.query('days') ?? 90), 365)
+  const parsed = ProductHistoryDaysQuerySchema.safeParse(c.req.query('days'))
+  if (!parsed.success) {
+    return c.json(
+      { error: 'invalid_query', message: 'days must be 1..365' },
+      400,
+    )
+  }
+  const days = parsed.data
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
   const { results } = await c.env.DB
     .prepare(

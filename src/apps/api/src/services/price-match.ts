@@ -36,14 +36,16 @@ export async function runPriceMatch(env: Env): Promise<PriceMatchResult> {
   }
   const today = new Date()
 
-  // 1) expire old ones first
+  // 1) expire old ones first.
+  // Use whole-day arithmetic (`julianday(date('now'))`) so an item purchased on
+  // day-30 isn't accidentally expired by the cron's wall-clock time-of-day.
   const expireRes = await env.DB
     .prepare(
       `UPDATE watchlist_items
        SET status = 'expired',
            updated_at = datetime('now')
        WHERE status IN ('active','price_match_eligible')
-         AND julianday('now') - julianday(purchase_date) > 30`,
+         AND julianday(date('now')) - julianday(purchase_date) > 30`,
     )
     .run()
   out.expired = expireRes.meta.changes ?? 0
@@ -70,11 +72,12 @@ export async function runPriceMatch(env: Env): Promise<PriceMatchResult> {
       }
     >()
 
-  // Group by user
+  // Group by user. days_remaining === 0 is the LAST valid day, so the boundary
+  // is `< 0` not `<= 0`.
   const byUser = new Map<number, typeof results>()
   for (const r of results) {
     const days = computeDays(r.purchase_date, today)
-    if (days.days_remaining <= 0) continue
+    if (days.days_remaining < 0) continue
     const arr = byUser.get(r.user_id) ?? []
     arr.push(r)
     byUser.set(r.user_id, arr)
@@ -103,39 +106,29 @@ export async function runPriceMatch(env: Env): Promise<PriceMatchResult> {
       .first<UserRow>()
     if (!user) continue
 
-    // 4) de-dup: filter out items we've already sent for at this exact price.
-    const top = items.slice(0, DAILY_DIGEST_LIMIT)
-    const codes = top.map((r) => r.product_code)
-    const placeholders = codes.map(() => '?').join(',')
-    const sent = codes.length
+    // 4) Per-item dedup against notifications_log.dedup_key.
+    //    Order matters: filter dedup FIRST, then apply the daily cap. The
+    //    previous implementation did slice() before dedup, so if the first 5
+    //    rows were already notified, items 6..N were silently dropped instead
+    //    of being delivered.
+    const candidateKeys = items.map((r) =>
+      priceMatchDedupKey(r.id, r.current_price),
+    )
+    const sentDedupKeys = candidateKeys.length
       ? await env.DB
           .prepare(
-            `SELECT json_extract(payload, '$.items') AS items_json
-             FROM notifications_log
+            `SELECT dedup_key FROM notifications_log
              WHERE user_id = ? AND status = 'sent'
-               AND date(sent_at) = date('now')`,
+               AND dedup_key IN (${candidateKeys.map(() => '?').join(',')})`,
           )
-          .bind(userId)
-          .all<{ items_json: string | null }>()
-      : { results: [] as { items_json: string | null }[] }
+          .bind(userId, ...candidateKeys)
+          .all<{ dedup_key: string }>()
+      : { results: [] as { dedup_key: string }[] }
+    const alreadySent = new Set(sentDedupKeys.results.map((r) => r.dedup_key))
 
-    const alreadySent = new Set<string>()
-    for (const row of sent.results) {
-      if (!row.items_json) continue
-      try {
-        const arr = JSON.parse(row.items_json) as Array<{
-          code: string
-          current_price: number
-        }>
-        for (const it of arr) alreadySent.add(`${it.code}@${it.current_price}`)
-      } catch {
-        // ignore malformed
-      }
-    }
-
-    const newItems = top.filter(
-      (r) => !alreadySent.has(`${r.product_code}@${r.current_price}`),
-    )
+    const newItems = items
+      .filter((r) => !alreadySent.has(priceMatchDedupKey(r.id, r.current_price)))
+      .slice(0, DAILY_DIGEST_LIMIT)
     if (newItems.length === 0) continue
 
     const payload: NotifyPayload = {
@@ -162,7 +155,15 @@ export async function runPriceMatch(env: Env): Promise<PriceMatchResult> {
 
     try {
       const results = await dispatch(env, user, payload, {
-        watchlistItemId: newItems[0]!.id, // primary anchor for dedup logging
+        watchlistItemId: newItems[0]!.id, // primary anchor for cascade-delete
+        // Composite dedup key — log one row per (digest, channel) anchored to
+        // the first item, but the per-item dedup query above already prevents
+        // re-sending. Use the digest's first (item, price) tuple so re-running
+        // the cron with no price change is a no-op.
+        dedupKey: priceMatchDedupKey(
+          newItems[0]!.id,
+          newItems[0]!.current_price,
+        ),
       })
       out.notifications += results.filter((r) => r.status === 'sent').length
     } catch (err) {
@@ -172,6 +173,11 @@ export async function runPriceMatch(env: Env): Promise<PriceMatchResult> {
   }
 
   return out
+}
+
+/** Stable dedup key for a price-match notification: `pricematch:<itemId>:<price>` */
+function priceMatchDedupKey(watchlistItemId: number, currentPrice: number): string {
+  return `pricematch:${watchlistItemId}:${currentPrice}`
 }
 
 function truncate(s: string, n: number): string {

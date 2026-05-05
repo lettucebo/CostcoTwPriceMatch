@@ -227,7 +227,10 @@ function toView(
 ): WatchlistItemView {
   const { days_remaining } = computeDays(r.purchase_date)
   const price_diff = r.purchase_price - r.current_price
-  const is_eligible = price_diff > 0 && days_remaining > 0
+  // days_remaining === 0 is the LAST valid day (`<= 30 days from purchase`).
+  // Filter must be `>= 0`, not `> 0`, otherwise the dashboard tells the user
+  // a same-day price drop is no longer claimable on the final eligible day.
+  const is_eligible = price_diff > 0 && days_remaining >= 0
   return {
     id: r.id,
     product: {

@@ -117,6 +117,7 @@ export async function runSnapshotDiff(
       })),
     },
     out.new_onsale > 0,
+    `digest:new_onsale:${today}`,
   )
   out.notifications += sentNewOnsale
 
@@ -136,6 +137,7 @@ export async function runSnapshotDiff(
       })),
     },
     out.new_best_buy > 0,
+    `digest:new_best_buy:${today}`,
   )
   out.notifications += sentBestBuy
 
@@ -175,7 +177,10 @@ export async function runSnapshotDiff(
         ],
       }
       try {
-        const results = await dispatch(env, user, payload)
+        const results = await dispatch(env, user, payload, {
+          // Once per (product, day) — re-running the cron must not re-spam.
+          dedupKey: `restock:${item.code}:${today}`,
+        })
         out.notifications += results.filter((r) => r.status === 'sent').length
       } catch (err) {
         console.error('[snapshot-diff] restock dispatch failed', err)
@@ -189,12 +194,17 @@ export async function runSnapshotDiff(
 /**
  * Send a single digest payload to every user subscribed to `type`.
  * Returns the number of notifications successfully sent.
+ *
+ * `dedupKey` is per-user-scoped by `dispatch()`, so the same string may be
+ * passed for every subscriber here — they each get one row in
+ * `notifications_log` keyed on `(user_id, dedup_key)`.
  */
 async function notifyDigest(
   env: Env,
   type: 'new_onsale' | 'new_best_buy',
   payload: NotifyPayload,
   hasItems: boolean,
+  dedupKey: string,
 ): Promise<number> {
   if (!hasItems) return 0
   const { results: subs } = await env.DB
@@ -211,7 +221,7 @@ async function notifyDigest(
       .first<UserRow>()
     if (!user) continue
     try {
-      const results = await dispatch(env, user, payload)
+      const results = await dispatch(env, user, payload, { dedupKey })
       sent += results.filter((r) => r.status === 'sent').length
     } catch (err) {
       console.error(`[snapshot-diff] ${type} dispatch failed`, err)

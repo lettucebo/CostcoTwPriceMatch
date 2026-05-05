@@ -19,10 +19,16 @@ subscriptionsRouter.get('/', async (c) => {
 subscriptionsRouter.post('/', async (c) => {
   const userId = c.get('userId')
   const body = CreateSubscriptionSchema.parse(await c.req.json())
+  // ON CONFLICT DO NOTHING (no column list) lets SQLite pick *any* matching
+  // unique constraint — the table-level UNIQUE(user_id, type, product_code) for
+  // per-product rows OR the partial UNIQUE(user_id, type) WHERE product_code IS
+  // NULL added by migration 0003 for global rows. Previously the explicit
+  // ON CONFLICT (user_id, type, product_code) clause never fired for global
+  // rows because SQLite treats NULL values as distinct in that index.
   await c.env.DB
     .prepare(
       `INSERT INTO subscriptions (user_id, type, product_code) VALUES (?, ?, ?)
-       ON CONFLICT (user_id, type, product_code) DO NOTHING`,
+       ON CONFLICT DO NOTHING`,
     )
     .bind(userId, body.type, body.product_code ?? null)
     .run()

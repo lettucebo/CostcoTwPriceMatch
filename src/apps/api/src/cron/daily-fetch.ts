@@ -122,7 +122,7 @@ export async function runDailyFetch(
   let snapshotEvents = 0
   try {
     const r = await runPriceMatch(env)
-    notificationsSent = r.notifications
+    notificationsSent += r.notifications
   } catch (err) {
     console.error('[cron] price match failed', err)
     errors++
@@ -130,6 +130,10 @@ export async function runDailyFetch(
   try {
     const r = await runSnapshotDiff(env, today)
     snapshotEvents = r.events
+    // runSnapshotDiff returns its own count for digests + restock alerts.
+    // Previously this was discarded, making `notifications_sent` in the meta
+    // under-report every snapshot notification.
+    notificationsSent += r.notifications
   } catch (err) {
     console.error('[cron] snapshot diff failed', err)
     errors++
