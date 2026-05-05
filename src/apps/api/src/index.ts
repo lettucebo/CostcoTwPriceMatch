@@ -11,6 +11,7 @@ import { receiptsRouter } from './routes/receipts.js'
 import { subscriptionsRouter } from './routes/subscriptions.js'
 import { pushRouter } from './routes/push.js'
 import { internalRouter } from './routes/internal.js'
+import { webhookRouter } from './routes/webhook.js'
 import { runDailyFetch } from './cron/daily-fetch.js'
 
 const app = new Hono<AppContext>()
@@ -34,6 +35,7 @@ app.get('/api/health', (c) =>
 )
 
 app.route('/auth', authRouter)
+app.route('/webhook', webhookRouter)
 app.route('/api/me', meRouter)
 app.route('/api/watchlist', watchlistRouter)
 app.route('/api/products', productsRouter)

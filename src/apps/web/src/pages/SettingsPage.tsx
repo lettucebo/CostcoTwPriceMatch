@@ -21,8 +21,8 @@ export function SettingsPage() {
 
   const [email, setEmail] = useState('')
   const [channels, setChannels] = useState<string[]>([])
-  const [lineId, setLineId] = useState('')
-  const [tgId, setTgId] = useState('')
+  const [lineCode, setLineCode] = useState<{ code: string; expires_at: string } | null>(null)
+  const [tgLink, setTgLink] = useState<{ code: string; expires_at: string; deep_link: string | null } | null>(null)
   const [pushOn, setPushOn] = useState(false)
 
   useEffect(() => {
@@ -34,6 +34,21 @@ export function SettingsPage() {
   useEffect(() => {
     isWebPushSubscribed().then(setPushOn)
   }, [])
+
+  // While a link code is pending, poll /api/me every 5s so the UI flips to "已連結"
+  // automatically once the bot's webhook claims the code.
+  useEffect(() => {
+    if (!lineCode && !tgLink) return
+    const id = setInterval(() => {
+      qc.invalidateQueries({ queryKey: ['me'] })
+    }, 5000)
+    return () => clearInterval(id)
+  }, [lineCode, tgLink, qc])
+
+  useEffect(() => {
+    if (lineCode && me.data?.line_linked) setLineCode(null)
+    if (tgLink && me.data?.telegram_linked) setTgLink(null)
+  }, [me.data?.line_linked, me.data?.telegram_linked, lineCode, tgLink])
 
   const saveNotifications = useMutation({
     mutationFn: async () => {
@@ -47,23 +62,41 @@ export function SettingsPage() {
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['me'] }),
   })
-  const linkLine = useMutation({
-    mutationFn: async (id: string | null) => {
-      await api('/api/me/link/line', {
-        method: 'PATCH',
-        body: JSON.stringify({ line_user_id: id }),
-      })
+  const startLineLink = useMutation({
+    mutationFn: async () => {
+      const res = await api('/api/me/link/line/start', { method: 'POST' })
+      return (await res.json()) as { code: string; expires_at: string }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['me'] }),
+    onSuccess: (data) => setLineCode(data),
   })
-  const linkTg = useMutation({
-    mutationFn: async (id: string | null) => {
-      await api('/api/me/link/telegram', {
-        method: 'PATCH',
-        body: JSON.stringify({ telegram_chat_id: id }),
-      })
+  const unlinkLine = useMutation({
+    mutationFn: async () => {
+      await api('/api/me/link/line', { method: 'DELETE' })
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['me'] }),
+    onSuccess: () => {
+      setLineCode(null)
+      qc.invalidateQueries({ queryKey: ['me'] })
+    },
+  })
+  const startTgLink = useMutation({
+    mutationFn: async () => {
+      const res = await api('/api/me/link/telegram/start', { method: 'POST' })
+      return (await res.json()) as {
+        code: string
+        expires_at: string
+        deep_link: string | null
+      }
+    },
+    onSuccess: (data) => setTgLink(data),
+  })
+  const unlinkTg = useMutation({
+    mutationFn: async () => {
+      await api('/api/me/link/telegram', { method: 'DELETE' })
+    },
+    onSuccess: () => {
+      setTgLink(null)
+      qc.invalidateQueries({ queryKey: ['me'] })
+    },
   })
 
   const togglePush = async () => {
@@ -146,67 +179,92 @@ export function SettingsPage() {
       <section className="card space-y-3">
         <h2 className="text-base font-semibold">LINE 連結</h2>
         <p className="text-xs text-white/60">
-          將 Bot 加為好友後，從 webhook 取得您的 userId（U 開頭，33 字元），貼在這裡。
-          詳見 LINE Messaging API 文件。
+          按下「產生連結代碼」後，將代碼以純文字訊息傳送給已加入好友的 LINE Bot。
+          系統會在收到訊息後自動完成連結（10 分鐘內有效）。
         </p>
-        <input
-          className="w-full rounded bg-white/5 px-3 py-2 font-mono text-xs"
-          placeholder="Uxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-          value={lineId}
-          onChange={(e) => setLineId(e.target.value)}
-        />
-        <div className="flex gap-2">
+        {me.data.line_linked ? (
+          <button
+            className="btn btn-ghost text-sm"
+            onClick={() => unlinkLine.mutate()}
+            disabled={unlinkLine.isPending}
+          >
+            取消 LINE 連結
+          </button>
+        ) : lineCode ? (
+          <div className="space-y-2">
+            <div className="rounded bg-white/10 px-3 py-2 text-center font-mono text-lg tracking-widest">
+              {lineCode.code}
+            </div>
+            <p className="text-xs text-white/60">
+              代碼有效至 {new Date(lineCode.expires_at).toLocaleTimeString('zh-TW')}。
+              連結成功後此區塊會自動更新。
+            </p>
+            <button
+              className="btn btn-ghost text-xs"
+              onClick={() => setLineCode(null)}
+            >
+              取消
+            </button>
+          </div>
+        ) : (
           <button
             className="btn btn-primary text-sm"
-            onClick={() => linkLine.mutate(lineId.trim() || null)}
+            onClick={() => startLineLink.mutate()}
+            disabled={startLineLink.isPending}
           >
-            儲存
+            {startLineLink.isPending ? '產生中...' : '產生連結代碼'}
           </button>
-          {me.data.line_linked && (
-            <button
-              className="btn btn-ghost text-sm"
-              onClick={() => {
-                setLineId('')
-                linkLine.mutate(null)
-              }}
-            >
-              取消連結
-            </button>
-          )}
-        </div>
+        )}
       </section>
 
       <section className="card space-y-3">
         <h2 className="text-base font-semibold">Telegram 連結</h2>
         <p className="text-xs text-white/60">
-          向您的 Telegram Bot 發 <code>/start</code>，從 getUpdates webhook 取得 chat.id（純數字），貼在這裡。
+          按下「產生連結代碼」後，點擊產生的連結即可在 Telegram 中按下「Start」自動完成連結（10 分鐘內有效）。
         </p>
-        <input
-          className="w-full rounded bg-white/5 px-3 py-2 font-mono text-xs"
-          placeholder="123456789"
-          value={tgId}
-          onChange={(e) => setTgId(e.target.value)}
-          inputMode="numeric"
-        />
-        <div className="flex gap-2">
+        {me.data.telegram_linked ? (
+          <button
+            className="btn btn-ghost text-sm"
+            onClick={() => unlinkTg.mutate()}
+            disabled={unlinkTg.isPending}
+          >
+            取消 Telegram 連結
+          </button>
+        ) : tgLink ? (
+          <div className="space-y-2">
+            {tgLink.deep_link ? (
+              <a
+                className="btn btn-primary block w-full text-center text-sm"
+                href={tgLink.deep_link}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                在 Telegram 開啟並完成連結
+              </a>
+            ) : (
+              <div className="rounded bg-white/10 px-3 py-2 font-mono text-xs">
+                {`/start ${tgLink.code}`}
+              </div>
+            )}
+            <p className="text-xs text-white/60">
+              代碼有效至 {new Date(tgLink.expires_at).toLocaleTimeString('zh-TW')}。
+            </p>
+            <button
+              className="btn btn-ghost text-xs"
+              onClick={() => setTgLink(null)}
+            >
+              取消
+            </button>
+          </div>
+        ) : (
           <button
             className="btn btn-primary text-sm"
-            onClick={() => linkTg.mutate(tgId.trim() || null)}
+            onClick={() => startTgLink.mutate()}
+            disabled={startTgLink.isPending}
           >
-            儲存
+            {startTgLink.isPending ? '產生中...' : '產生連結代碼'}
           </button>
-          {me.data.telegram_linked && (
-            <button
-              className="btn btn-ghost text-sm"
-              onClick={() => {
-                setTgId('')
-                linkTg.mutate(null)
-              }}
-            >
-              取消連結
-            </button>
-          )}
-        </div>
+        )}
       </section>
 
       <section className="card space-y-3">
