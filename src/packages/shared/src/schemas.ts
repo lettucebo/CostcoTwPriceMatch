@@ -6,13 +6,30 @@ export const CostcoCodeSchema = z
   .string()
   .regex(/^\d{4,9}$/, 'Costco product code must be 4-9 digits')
 
-/** Date in YYYY-MM-DD format */
+/**
+ * Date in `YYYY-MM-DD` form. Validates both shape and **calendar validity**:
+ * `2026-02-31`, `2026-13-01`, `2024-02-30` are rejected. Round-trip parses
+ * the string through `Date` so impossible dates can never reach `computeDays()`
+ * or `julianday()` downstream.
+ */
 export const DateStringSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'must be YYYY-MM-DD')
+  .refine((s) => {
+    const d = new Date(`${s}T00:00:00Z`)
+    return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s
+  }, 'must be a real calendar date')
 
 /** Price: positive number */
 export const PriceSchema = z.number().positive().finite()
+
+/** GET /api/products/:code/history?days=N */
+export const ProductHistoryDaysQuerySchema = z.coerce
+  .number()
+  .int()
+  .min(1)
+  .max(365)
+  .default(90)
 
 /** POST /api/watchlist */
 export const CreateWatchlistItemSchema = z.object({

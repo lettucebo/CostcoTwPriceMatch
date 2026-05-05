@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -48,5 +49,31 @@ export default defineConfig({
       '/api': 'http://localhost:8787',
       '/auth': 'http://localhost:8787',
     },
+  },
+  build: {
+    // Split heavy / rarely-changing libraries into their own chunks so the
+    // main bundle stays small. The previous single-bundle build was ~620 KB
+    // (180 KB gz); after splitting the dashboard-relevant code is well under
+    // the 500 KB warning threshold.
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-router-dom'],
+          query: ['@tanstack/react-query'],
+          recharts: ['recharts'],
+        },
+      },
+    },
+    // Recharts itself is ~380 KB; the rest of our chunks are small. 450 catches
+    // any future regression on the *main* bundle without flagging the lazy
+    // recharts chunk on every build.
+    chunkSizeWarningLimit: 450,
+  },
+  test: {
+    environment: 'happy-dom',
+    globals: true,
+    setupFiles: ['./test/setup.ts'],
+    include: ['test/**/*.test.{ts,tsx}'],
+    css: false,
   },
 })

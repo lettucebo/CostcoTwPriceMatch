@@ -82,6 +82,8 @@ export interface NotificationLogRow {
   payload: string // JSON
   status: 'sent' | 'failed' | 'skipped'
   error: string | null
+  /** Stable identifier used to skip duplicate dispatches. Added by migration 0003. */
+  dedup_key: string | null
   sent_at: string
 }
 
