@@ -50,45 +50,14 @@ export async function scanReceipt(c: Context<AppContext>) {
   const buf = await file.arrayBuffer()
   const bytes = new Uint8Array(buf)
 
-  let raw: string
-  try {
-    const result = (await c.env.AI.run(VISION_MODEL as never, {
-      image: [...bytes],
-      prompt: PROMPT,
-      max_tokens: 1024,
-    } as never)) as { response?: string; description?: string }
-    raw = result.response ?? result.description ?? ''
-  } catch (err) {
-    console.error('[ocr] AI run failed', err)
-    return c.json(
-      {
-        error: 'ocr_failed',
-        message: err instanceof Error ? err.message : 'unknown',
-        suggestion: 'Try again, or use BYOK mode in settings.',
-      },
-      503,
-    )
+  // Try once with the standard prompt; if Llama returns malformed / non-JSON
+  // output, retry with a stricter prompt that re-emphasizes the format
+  // requirement before giving up.
+  const ocr = await runOcrWithRetry(c.env.AI, bytes)
+  if (!ocr.ok) {
+    return c.json(ocr.error, ocr.status)
   }
-
-  // Extract first JSON block (Llama may wrap in markdown).
-  const jsonStr = extractJson(raw)
-  if (!jsonStr) {
-    return c.json({ error: 'ocr_no_json', raw: raw.slice(0, 500) }, 422)
-  }
-  let parsed: OcrResult
-  try {
-    const obj = JSON.parse(jsonStr) as unknown
-    parsed = OcrResultSchema.parse(obj)
-  } catch (err) {
-    return c.json(
-      {
-        error: 'ocr_schema_invalid',
-        message: err instanceof Error ? err.message : 'unknown',
-        raw: raw.slice(0, 500),
-      },
-      422,
-    )
-  }
+  const parsed = ocr.value
 
   // For each item with a code, try to fetch from Costco so user can preview.
   // For items without a code, fuzzy match against products.zh_name.
@@ -214,4 +183,82 @@ function extractJson(raw: string): string | null {
     return trimmed.slice(start, end + 1)
   }
   return null
+}
+
+const STRICT_RETRY_PROMPT = `${PROMPT}
+
+⚠️ STRICT OUTPUT REQUIREMENTS — your last response was not valid JSON:
+- Output ONLY one JSON object. No markdown fences, no commentary, no \`\`\`.
+- The first character of your response must be \`{\`.
+- The last character must be \`}\`.
+- Use double quotes only. Do not use trailing commas.`
+
+type OcrOutcome =
+  | { ok: true; value: OcrResult }
+  | { ok: false; status: 422 | 503; error: Record<string, unknown> }
+
+/**
+ * Call Workers AI vision model and parse the result. If the first attempt
+ * returns malformed / non-JSON output, retry once with a stricter prompt that
+ * re-emphasizes the format requirement before giving up.
+ *
+ * @param ai Cloudflare Workers AI binding (kept untyped to avoid leaking the
+ *           Ai type beyond this module).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function runOcrWithRetry(ai: any, bytes: Uint8Array): Promise<OcrOutcome> {
+  let lastRaw = ''
+  let lastError: string | null = null
+
+  for (const [attempt, prompt] of [
+    [0, PROMPT],
+    [1, STRICT_RETRY_PROMPT],
+  ] as const) {
+    let raw: string
+    try {
+      const result = (await ai.run(VISION_MODEL, {
+        image: [...bytes],
+        prompt,
+        max_tokens: 1024,
+      })) as { response?: string; description?: string }
+      raw = result.response ?? result.description ?? ''
+    } catch (err) {
+      console.error('[ocr] AI run failed', err)
+      return {
+        ok: false,
+        status: 503,
+        error: {
+          error: 'ocr_failed',
+          message: err instanceof Error ? err.message : 'unknown',
+          suggestion: 'Try again, or use BYOK mode in settings.',
+          attempt,
+        },
+      }
+    }
+    lastRaw = raw
+
+    const jsonStr = extractJson(raw)
+    if (!jsonStr) {
+      lastError = 'no_json'
+      continue // retry with stricter prompt
+    }
+    try {
+      const obj = JSON.parse(jsonStr) as unknown
+      return { ok: true, value: OcrResultSchema.parse(obj) }
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : 'parse_error'
+      // fall through and retry
+    }
+  }
+
+  return {
+    ok: false,
+    status: 422,
+    error: {
+      error: lastError === 'no_json' ? 'ocr_no_json' : 'ocr_schema_invalid',
+      message: lastError ?? 'unknown',
+      raw: lastRaw.slice(0, 500),
+      retried: true,
+    },
+  }
 }

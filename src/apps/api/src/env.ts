@@ -40,6 +40,11 @@ export interface Env {
    * Worker `vars` are always strings.
    */
   CRON_ALERT_THRESHOLD?: string
+  /**
+   * Max items per user per day in the price-match digest. Default 5.
+   * Stored as string (Worker var) — clamped to [1, 100] at read time.
+   */
+  PRICE_MATCH_DAILY_CAP?: string
 }
 
 export interface AppVariables {
