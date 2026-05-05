@@ -10,11 +10,21 @@
     "build": "pnpm -r run build",
     "test": "pnpm -r run test",
     "typecheck": "pnpm -r run typecheck",
-    "lint": "pnpm -r run lint"
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "husky"
   },
   "devDependencies": {
-    "typescript": "^5.6.3",
-    "@types/node": "^22.7.5"
+    "@types/node": "^22.7.5",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.10",
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,mjs,cjs,json,md,yaml,yml,css,html}": [
+      "prettier --write"
+    ]
   },
   "engines": {
     "node": ">=20.0.0",
