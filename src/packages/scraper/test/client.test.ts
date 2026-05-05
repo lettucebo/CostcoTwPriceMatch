@@ -149,18 +149,44 @@ describe('throttle (#29)', () => {
     expect(events[2]! - events[1]!).toBeGreaterThanOrEqual(1100)
   })
 
-  it('minGapMs=0 lets calls run back-to-back', async () => {
-    let calls = 0
+  it('minGapMs=0 lets calls run back-to-back (virtual clock — no sleeps)', async () => {
+    const events: number[] = []
+    let nowMs = 0
+    const realDateNow = Date.now
+    Date.now = () => nowMs
+
     const fetcher = vi.fn().mockImplementation(async () => {
-      calls++
+      events.push(nowMs)
       return mockJsonResponse(page1)
     })
-    const start = Date.now()
-    await Promise.all([
-      fetchCategoryPage('hot-buys', 0, { fetcher, minGapMs: 0 }),
-      fetchCategoryPage('hot-buys', 1, { fetcher, minGapMs: 0 }),
-    ])
-    expect(Date.now() - start).toBeLessThan(1500)
-    expect(calls).toBe(2)
+
+    // Patch setTimeout: any call (other than 0ms) advances the virtual clock.
+    // If the throttle were active with minGapMs=0 it should never call this
+    // with > 0; if it did, the assertion below would catch it because the
+    // timestamps would differ.
+    const realSetTimeout = globalThis.setTimeout
+    let timeoutsScheduled = 0
+    globalThis.setTimeout = ((fn: () => void, ms: number) => {
+      timeoutsScheduled++
+      nowMs += ms
+      Promise.resolve().then(fn)
+      return 0 as unknown as ReturnType<typeof setTimeout>
+    }) as typeof setTimeout
+
+    try {
+      await Promise.all([
+        fetchCategoryPage('hot-buys', 0, { fetcher, minGapMs: 0 }),
+        fetchCategoryPage('hot-buys', 1, { fetcher, minGapMs: 0 }),
+      ])
+    } finally {
+      globalThis.setTimeout = realSetTimeout
+      Date.now = realDateNow
+    }
+
+    expect(events).toHaveLength(2)
+    // Both calls fired at the same virtual instant — no sleeps were inserted
+    // between them. (Virtual clock means "no wall-clock dependence".)
+    expect(events[1]).toBe(events[0])
+    expect(timeoutsScheduled).toBe(0)
   })
 })
