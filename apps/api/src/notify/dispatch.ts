@@ -7,12 +7,15 @@ import type {
 import { emailNotifier } from './email.js'
 import { lineNotifier } from './line.js'
 import { telegramNotifier } from './telegram.js'
+import { webpushNotifier } from './webpush.js'
 import type { Notifier, NotifyResult } from './notifier.js'
 
-/**
- * Notifier registry. Web Push is added in #14.
- */
-const ALL_NOTIFIERS: Notifier[] = [emailNotifier, lineNotifier, telegramNotifier]
+const ALL_NOTIFIERS: Notifier[] = [
+  emailNotifier,
+  lineNotifier,
+  telegramNotifier,
+  webpushNotifier,
+]
 
 export interface DispatchOptions {
   /** Skip de-duplication when set (e.g., user-triggered test send). */

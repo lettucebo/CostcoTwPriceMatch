@@ -7,7 +7,12 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      strategies: 'generateSW',
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest,woff2}'],
+      },
       includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
       manifest: {
         name: 'Costco TW 退差價追蹤',
@@ -31,56 +36,9 @@ export default defineConfig({
           },
         ],
       },
-      workbox: {
-        navigateFallback: 'index.html',
-        navigateFallbackDenylist: [/^\/api\//, /^\/auth\//],
-        dontCacheBustURLsMatching: /^assets\//,
-        runtimeCaching: [
-          {
-            // Product detail data — fresh-ish but tolerate offline
-            urlPattern: ({ url }) =>
-              url.pathname.startsWith('/api/products/'),
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'api-products',
-              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
-            // User watchlist — try network first, fallback to cache offline
-            urlPattern: ({ url }) =>
-              url.pathname.startsWith('/api/watchlist'),
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-watchlist',
-              networkTimeoutSeconds: 5,
-              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
-            urlPattern: /\.(?:png|jpg|jpeg|webp|svg)$/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'images',
-              expiration: { maxEntries: 200, maxAgeSeconds: 30 * 24 * 60 * 60 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.(?:googleapis|gstatic)\.com\//,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts',
-              expiration: { maxEntries: 30, maxAgeSeconds: 365 * 24 * 60 * 60 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-        ],
-      },
       devOptions: {
         enabled: true,
+        type: 'module',
       },
     }),
   ],
