@@ -1,7 +1,11 @@
 /// <reference lib="WebWorker" />
 /// <reference types="vite-plugin-pwa/info" />
 
-import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching'
+import {
+  precacheAndRoute,
+  cleanupOutdatedCaches,
+  createHandlerBoundToURL,
+} from 'workbox-precaching'
 import { NavigationRoute, registerRoute } from 'workbox-routing'
 import {
   StaleWhileRevalidate,
@@ -16,18 +20,17 @@ declare const self: ServiceWorkerGlobalScope
 cleanupOutdatedCaches()
 precacheAndRoute(self.__WB_MANIFEST)
 
-// SPA fallback for navigation, except API/auth
+// SPA fallback for navigation, except API/auth.
+//
+// Workbox version-stamps its precache (e.g. `workbox-precache-v2-...`), so the
+// previous implementation that did `caches.open('workbox-precache').match(...)`
+// was always a miss. `createHandlerBoundToURL` resolves the actual revisioned
+// URL via the manifest at install time, so the handler returns the correct
+// cached `/index.html` regardless of cache name.
 registerRoute(
-  new NavigationRoute(
-    async ({ event }) => {
-      const cache = await caches.open('workbox-precache')
-      const html = await cache.match('/index.html')
-      return html ?? fetch((event as FetchEvent).request)
-    },
-    {
-      denylist: [/^\/api\//, /^\/auth\//],
-    },
-  ),
+  new NavigationRoute(createHandlerBoundToURL('/index.html'), {
+    denylist: [/^\/api\//, /^\/auth\//],
+  }),
 )
 
 // Product detail data — SWR

@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview --port 4173",
     "typecheck": "tsc -b --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "assets:pwa": "pwa-assets-generator --preset minimal-2023 public/pwa-icon.svg"
   },
   "dependencies": {
     "@costco/shared": "workspace:*",
@@ -24,6 +25,7 @@
     "@testing-library/user-event": "^14.5.2",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "@vite-pwa/assets-generator": "^0.2.6",
     "@vitejs/plugin-react": "^4.3.3",
     "autoprefixer": "^10.4.20",
     "happy-dom": "^15.11.6",
