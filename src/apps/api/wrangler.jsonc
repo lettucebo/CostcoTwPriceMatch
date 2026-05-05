@@ -1,0 +1,37 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "costco-tw-price-match-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-01-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "observability": {
+    "enabled": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "costco-tw-price-match",
+      "database_id": "REPLACE_WITH_REAL_D1_ID",
+      "migrations_dir": "../../migrations"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "KV_CACHE",
+      "id": "REPLACE_WITH_REAL_KV_ID"
+    }
+  ],
+  "ai": {
+    "binding": "AI"
+  },
+  "vars": {
+    "APP_BASE_URL": "https://costco-tw-price-match.pages.dev",
+    "API_BASE_URL": "https://costco-tw-price-match-api.workers.dev"
+  },
+  "triggers": {
+    "crons": [
+      "15 4 * * *"
+    ]
+  }
+}

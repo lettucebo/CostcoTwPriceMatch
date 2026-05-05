@@ -1,0 +1,84 @@
+{
+  "code": "217455",
+  "name": "Ariel 抗菌抗臭洗衣精補充包 1260公克 X 6入",
+  "englishName": "Ariel Liquid Laundry Detergent Refill 1260 g X 6-Count",
+  "url": "/Household-Pet-Supplies/Cleaning-Laundry-Products/Laundry/Ariel-Liquid-Laundry-Detergent-Refill-1260-g-X-6-Count/p/217455",
+  "averageRating": 4.9,
+  "numberOfReviews": 1141,
+  "purchasable": true,
+  "membershipRestrictionApplied": false,
+  "hidePriceValue": false,
+  "deliveryName": "Costco Food",
+  "minOrderQuantity": 1,
+  "maxOrderQuantity": 500,
+  "basePrice": {
+    "currencyIso": "TWD",
+    "value": 899,
+    "priceType": "BUY",
+    "formattedValue": "$899",
+    "formattedPriceForSetOfTwoQuantities": "$1,798"
+  },
+  "price": {
+    "currencyIso": "TWD",
+    "value": 719,
+    "priceType": "BUY",
+    "formattedValue": "$719",
+    "formattedPriceForSetOfTwoQuantities": "$1,438"
+  },
+  "discountPrice": {
+    "currencyIso": "TWD",
+    "value": 180,
+    "priceType": "BUY",
+    "formattedValue": "$180"
+  },
+  "couponDiscount": {
+    "discountType": "default",
+    "discountValue": 180,
+    "formattedDiscountValue": "$180"
+  },
+  "pricePerUnit": {
+    "currencyIso": "TWD",
+    "value": 5,
+    "priceType": "BUY",
+    "formattedValue": "$5"
+  },
+  "unitType": "蓋杯",
+  "hasPricePerUnit": true,
+  "stock": {
+    "stockLevelStatus": "inStock",
+    "contactDay": 0,
+    "deliveryLeadTime": 0
+  },
+  "images": [
+    {
+      "format": "thumbnail",
+      "imageType": "PRIMARY",
+      "url": "/medias/sys_master/images/h29/h74/49770572316702.jpg"
+    },
+    {
+      "format": "product",
+      "imageType": "PRIMARY",
+      "url": "/medias/sys_master/images/h21/ha1/49770570579998.jpg"
+    },
+    {
+      "format": "results",
+      "imageType": "PRIMARY",
+      "url": "/medias/sys_master/images/h85/hc4/49770571169822.jpg"
+    },
+    {
+      "format": "carousel",
+      "imageType": "PRIMARY",
+      "url": "/medias/sys_master/images/h85/hc4/49770571169822.jpg"
+    }
+  ],
+  "decalData": [
+    {
+      "key": "1",
+      "value": {
+        "altText": "Costco好市多優惠特價商品",
+        "position": 1,
+        "url": "/mediapermalink/decal_HOT2"
+      }
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "code": "999987",
+  "name": "好市多核桃 1.36 公斤",
+  "englishName": "Costco Walnuts, 3 lb",
+  "url": "/Food-Dining/Snacks/Nuts/Costco-Walnuts-3-lb/p/999987",
+  "purchasable": true,
+  "hidePriceValue": false,
+  "price": {
+    "currencyIso": "TWD",
+    "value": 527,
+    "priceType": "BUY",
+    "formattedValue": "$527"
+  },
+  "basePrice": {
+    "currencyIso": "TWD",
+    "value": 527,
+    "priceType": "BUY",
+    "formattedValue": "$527"
+  },
+  "stock": {
+    "stockLevelStatus": "inStock",
+    "stockLevel": 42
+  },
+  "images": [
+    {
+      "format": "product",
+      "imageType": "PRIMARY",
+      "url": "https://www.costco.com.tw/medias/example.jpg"
+    }
+  ]
+}
