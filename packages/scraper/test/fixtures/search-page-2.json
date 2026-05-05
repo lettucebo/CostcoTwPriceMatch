@@ -1,0 +1,20 @@
+{
+  "products": [
+    {
+      "code": "100003",
+      "name": "Test Product 3",
+      "url": "/p/100003",
+      "price": { "currencyIso": "TWD", "value": 499 },
+      "basePrice": { "currencyIso": "TWD", "value": 499 },
+      "stock": { "stockLevelStatus": "outOfStock" },
+      "images": []
+    }
+  ],
+  "pagination": {
+    "currentPage": 1,
+    "pageSize": 100,
+    "totalPages": 2,
+    "totalResults": 102,
+    "sort": "price-asc"
+  }
+}

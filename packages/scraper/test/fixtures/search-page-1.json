@@ -1,0 +1,30 @@
+{
+  "products": [
+    {
+      "code": "100001",
+      "name": "Test Product 1",
+      "url": "/p/100001",
+      "price": { "currencyIso": "TWD", "value": 199 },
+      "basePrice": { "currencyIso": "TWD", "value": 199 },
+      "stock": { "stockLevelStatus": "inStock" },
+      "images": []
+    },
+    {
+      "code": "100002",
+      "name": "Test Product 2",
+      "url": "/p/100002",
+      "price": { "currencyIso": "TWD", "value": 299 },
+      "basePrice": { "currencyIso": "TWD", "value": 399 },
+      "discountPrice": { "currencyIso": "TWD", "value": 100 },
+      "stock": { "stockLevelStatus": "inStock" },
+      "images": []
+    }
+  ],
+  "pagination": {
+    "currentPage": 0,
+    "pageSize": 100,
+    "totalPages": 2,
+    "totalResults": 102,
+    "sort": "price-asc"
+  }
+}
