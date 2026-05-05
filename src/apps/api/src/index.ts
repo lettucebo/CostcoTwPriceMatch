@@ -17,7 +17,9 @@ const app = new Hono<AppContext>()
 
 app.use(logger())
 app.use(secureHeaders())
-app.use('/api/*', (c, next) => {
+// CORS must apply to /auth/* (cross-origin POST /auth/logout from Pages → Workers)
+// as well as /api/*. Mounting at root catches both.
+app.use('*', (c, next) => {
   const origin = c.env.APP_BASE_URL
   return cors({
     origin: [origin, 'http://localhost:5173'],

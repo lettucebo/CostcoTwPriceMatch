@@ -71,6 +71,17 @@ pnpm --filter @costco/api run deploy
 #   build output dir: src/apps/web/dist
 ```
 
+> **Required Pages env var (Production + Preview):**
+>
+> | Key | Value |
+> | --- | --- |
+> | `VITE_API_BASE_URL` | `https://<your-worker>.workers.dev` |
+>
+> The web build will throw at module load if this is missing in production mode
+> ([`src/apps/web/src/lib/api.ts`](src/apps/web/src/lib/api.ts)). The cookie used
+> for the session is `SameSite=None; Secure`, which only works when both Pages
+> and Workers are served over HTTPS — Cloudflare's defaults already satisfy this.
+
 ## Manual smoke tests
 
 After deploy, run these in order:
