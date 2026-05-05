@@ -19,3 +19,7 @@ TELEGRAM_WEBHOOK_SECRET=""
 VAPID_PUBLIC_KEY=""
 VAPID_PRIVATE_KEY=""
 VAPID_SUBJECT="mailto:you@example.com"
+
+# Optional, for issue #37 — operational alerts
+ADMIN_ALERT_EMAIL=""
+CRON_ALERT_THRESHOLD="5"

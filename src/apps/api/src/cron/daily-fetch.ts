@@ -8,6 +8,7 @@ import {
 import { upsertProduct, appendPriceHistory } from '../services/products.js'
 import { runPriceMatch } from '../services/price-match.js'
 import { runSnapshotDiff } from '../services/snapshot-diff.js'
+import { alertThreshold, sendCronAlert } from '../notify/alert.js'
 
 export interface DailyFetchOptions {
   trigger: 'cron' | 'manual'
@@ -162,6 +163,22 @@ export async function runDailyFetch(
       .bind(errors === 0 ? 'success' : 'failed', JSON.stringify(result), jobId)
       .run()
   }
+
+  // Alert the maintainer when the cron run accumulated too many errors.
+  // Best-effort — failures here never propagate.
+  const threshold = alertThreshold(env)
+  if (threshold > 0 && errors >= threshold) {
+    await sendCronAlert(
+      env,
+      `Daily cron had ${errors} error(s)`,
+      {
+        ...result,
+        cron: opts.cron,
+        threshold,
+      },
+    )
+  }
+
   return result
 }
 
