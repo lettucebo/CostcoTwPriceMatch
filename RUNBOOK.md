@@ -12,6 +12,8 @@ pnpm dev   # runs web (5173) + api (8787) in parallel
 ```
 
 > **pnpm only.** A `preinstall` guard blocks `npm`/`yarn` via `only-allow`. Use `corepack enable` or install pnpm 9 directly.
+>
+> **Node ≥ 22** is required (Wrangler v4 minimum). CI pins to Node 22 LTS.
 
 ## Tests
 
