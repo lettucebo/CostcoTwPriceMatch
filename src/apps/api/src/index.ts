@@ -11,13 +11,16 @@ import { receiptsRouter } from './routes/receipts.js'
 import { subscriptionsRouter } from './routes/subscriptions.js'
 import { pushRouter } from './routes/push.js'
 import { internalRouter } from './routes/internal.js'
+import { webhookRouter } from './routes/webhook.js'
 import { runDailyFetch } from './cron/daily-fetch.js'
 
 const app = new Hono<AppContext>()
 
 app.use(logger())
 app.use(secureHeaders())
-app.use('/api/*', (c, next) => {
+// CORS must apply to /auth/* (cross-origin POST /auth/logout from Pages → Workers)
+// as well as /api/*. Mounting at root catches both.
+app.use('*', (c, next) => {
   const origin = c.env.APP_BASE_URL
   return cors({
     origin: [origin, 'http://localhost:5173'],
@@ -32,6 +35,7 @@ app.get('/api/health', (c) =>
 )
 
 app.route('/auth', authRouter)
+app.route('/webhook', webhookRouter)
 app.route('/api/me', meRouter)
 app.route('/api/watchlist', watchlistRouter)
 app.route('/api/products', productsRouter)

@@ -50,7 +50,10 @@ in `src/apps/api/package.json`.
    pnpm exec wrangler secret put RESEND_API_KEY             # from resend.com
    # Optional channels:
    pnpm exec wrangler secret put LINE_CHANNEL_ACCESS_TOKEN
+   pnpm exec wrangler secret put LINE_CHANNEL_SECRET        # required to verify LINE webhooks
    pnpm exec wrangler secret put TELEGRAM_BOT_TOKEN
+   pnpm exec wrangler secret put TELEGRAM_BOT_USERNAME      # without @, used to build deep links
+   pnpm exec wrangler secret put TELEGRAM_WEBHOOK_SECRET    # openssl rand -hex 32 (any random string)
    pnpm exec wrangler secret put VAPID_PUBLIC_KEY           # from `pnpm dlx web-push generate-vapid-keys`
    pnpm exec wrangler secret put VAPID_PRIVATE_KEY
    pnpm exec wrangler secret put VAPID_SUBJECT              # mailto:you@example.com
@@ -59,6 +62,19 @@ in `src/apps/api/package.json`.
    - Authorized origins: `https://<project>.pages.dev`, `http://localhost:5173`
    - Authorized redirect URIs: `https://<project>.workers.dev/auth/google/callback`,
      `http://localhost:8787/auth/google/callback`
+7. **(Optional) LINE Bot webhook** — at <https://developers.line.biz>
+   - Channel → Messaging API → Webhook URL: `https://<worker>.workers.dev/webhook/line`
+   - Enable "Use webhook" toggle.
+   - The channel secret you copy into `LINE_CHANNEL_SECRET` is what's used to sign each webhook request.
+8. **(Optional) Telegram Bot webhook** — register via:
+   ```bash
+   curl -F "url=https://<worker>.workers.dev/webhook/telegram" \
+        -F "secret_token=$TELEGRAM_WEBHOOK_SECRET" \
+        https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook
+   ```
+   Verify with `getWebhookInfo`. Telegram will include the secret in the
+   `X-Telegram-Bot-Api-Secret-Token` header on every callback so we can
+   reject forged requests at the edge.
 
 ### Deploy
 
@@ -70,6 +86,17 @@ pnpm --filter @costco/api run deploy
 #   build command:    pnpm --filter @costco/web run build
 #   build output dir: src/apps/web/dist
 ```
+
+> **Required Pages env var (Production + Preview):**
+>
+> | Key | Value |
+> | --- | --- |
+> | `VITE_API_BASE_URL` | `https://<your-worker>.workers.dev` |
+>
+> The web build will throw at module load if this is missing in production mode
+> ([`src/apps/web/src/lib/api.ts`](src/apps/web/src/lib/api.ts)). The cookie used
+> for the session is `SameSite=None; Secure`, which only works when both Pages
+> and Workers are served over HTTPS — Cloudflare's defaults already satisfy this.
 
 ## Manual smoke tests
 

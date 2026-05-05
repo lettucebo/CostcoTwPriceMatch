@@ -19,7 +19,13 @@ export interface Env {
   RESEND_API_KEY?: string
   INTERNAL_BEARER: string
   LINE_CHANNEL_ACCESS_TOKEN?: string
+  /** LINE Messaging API channel secret — required to verify webhook signatures. */
+  LINE_CHANNEL_SECRET?: string
   TELEGRAM_BOT_TOKEN?: string
+  /** Token used as `X-Telegram-Bot-Api-Secret-Token` header to authenticate Telegram webhooks. */
+  TELEGRAM_WEBHOOK_SECRET?: string
+  /** Telegram bot username (without @), used to build deep-link `https://t.me/<bot>?start=<code>`. */
+  TELEGRAM_BOT_USERNAME?: string
   VAPID_PUBLIC_KEY?: string
   VAPID_PRIVATE_KEY?: string
   VAPID_SUBJECT?: string

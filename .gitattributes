@@ -1,0 +1,35 @@
+# Enforce LF line endings in repo (prevents Windows CRLF from breaking pnpm-lock.yaml on Linux CI)
+* text=auto eol=lf
+
+# Explicit text files that must be LF
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.json text eol=lf
+*.jsonc text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.md text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.sql text eol=lf
+*.sh text eol=lf
+*.toml text eol=lf
+
+# Lockfiles must be LF (CI uses --frozen-lockfile)
+pnpm-lock.yaml text eol=lf
+
+# Binary files — never normalize
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pdf binary

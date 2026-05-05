@@ -116,6 +116,15 @@ export interface PushSubscriptionRow {
   created_at: string
 }
 
+/** D1 row: link_codes (one-time codes for binding LINE/Telegram channels) */
+export interface LinkCodeRow {
+  code: string
+  user_id: number
+  channel: 'line' | 'telegram'
+  expires_at: string
+  created_at: string
+}
+
 /** API: watchlist item with computed fields */
 export interface WatchlistItemView {
   id: number

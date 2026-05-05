@@ -133,7 +133,10 @@ export async function googleCallbackRoute(c: Context<AppContext>) {
   setCookie(c, COOKIE_NAME, jwt, {
     httpOnly: true,
     secure: !isLocalDev(env),
-    sameSite: 'Lax',
+    // SameSite=None is required for cross-site XHR (Pages → Workers) and
+    // mandates Secure. In local dev (HTTP via Vite proxy = same-origin) Lax
+    // is the correct choice because Secure cookies do not flow over plain HTTP.
+    sameSite: isLocalDev(env) ? 'Lax' : 'None',
     path: '/',
     maxAge: SESSION_TTL_SEC,
   })
