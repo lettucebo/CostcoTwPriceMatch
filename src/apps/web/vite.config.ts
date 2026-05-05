@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -48,5 +49,12 @@ export default defineConfig({
       '/api': 'http://localhost:8787',
       '/auth': 'http://localhost:8787',
     },
+  },
+  test: {
+    environment: 'happy-dom',
+    globals: true,
+    setupFiles: ['./test/setup.ts'],
+    include: ['test/**/*.test.{ts,tsx}'],
+    css: false,
   },
 })

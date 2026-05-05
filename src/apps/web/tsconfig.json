@@ -9,7 +9,7 @@
     "useDefineForClassFields": true,
     "noEmit": true,
     "allowImportingTsExtensions": true,
-    "types": ["vite/client", "vite-plugin-pwa/react"]
+    "types": ["vite/client", "vite-plugin-pwa/react", "vitest/globals"]
   },
-  "include": ["src/**/*", "vite.config.ts"]
+  "include": ["src/**/*", "vite.config.ts", "test/**/*"]
 }
