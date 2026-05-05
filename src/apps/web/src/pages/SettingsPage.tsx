@@ -36,10 +36,18 @@ export function SettingsPage() {
   }, [])
 
   // While a link code is pending, poll /api/me every 5s so the UI flips to "已連結"
-  // automatically once the bot's webhook claims the code.
+  // automatically once the bot's webhook claims the code. Also auto-clears the
+  // pending state when the code expires so we stop hitting the API in the
+  // background.
   useEffect(() => {
     if (!lineCode && !tgLink) return
+    const checkExpiry = () => {
+      const now = Date.now()
+      if (lineCode && Date.parse(lineCode.expires_at) < now) setLineCode(null)
+      if (tgLink && Date.parse(tgLink.expires_at) < now) setTgLink(null)
+    }
     const id = setInterval(() => {
+      checkExpiry()
       qc.invalidateQueries({ queryKey: ['me'] })
     }, 5000)
     return () => clearInterval(id)
@@ -69,6 +77,12 @@ export function SettingsPage() {
     },
     onSuccess: (data) => setLineCode(data),
   })
+  const cancelLineLink = useMutation({
+    mutationFn: async () => {
+      await api('/api/me/link/line/start', { method: 'DELETE' })
+    },
+    onSuccess: () => setLineCode(null),
+  })
   const unlinkLine = useMutation({
     mutationFn: async () => {
       await api('/api/me/link/line', { method: 'DELETE' })
@@ -88,6 +102,12 @@ export function SettingsPage() {
       }
     },
     onSuccess: (data) => setTgLink(data),
+  })
+  const cancelTgLink = useMutation({
+    mutationFn: async () => {
+      await api('/api/me/link/telegram/start', { method: 'DELETE' })
+    },
+    onSuccess: () => setTgLink(null),
   })
   const unlinkTg = useMutation({
     mutationFn: async () => {
@@ -201,9 +221,10 @@ export function SettingsPage() {
             </p>
             <button
               className="btn btn-ghost text-xs"
-              onClick={() => setLineCode(null)}
+              onClick={() => cancelLineLink.mutate()}
+              disabled={cancelLineLink.isPending}
             >
-              取消
+              取消並作廢代碼
             </button>
           </div>
         ) : (
@@ -251,9 +272,10 @@ export function SettingsPage() {
             </p>
             <button
               className="btn btn-ghost text-xs"
-              onClick={() => setTgLink(null)}
+              onClick={() => cancelTgLink.mutate()}
+              disabled={cancelTgLink.isPending}
             >
-              取消
+              取消並作廢代碼
             </button>
           </div>
         ) : (

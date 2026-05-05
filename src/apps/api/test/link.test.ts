@@ -2,10 +2,16 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import {
   createLinkCode,
   claimLinkCode,
+  revokePendingCode,
   unlinkChannel,
+  purgeExpiredLinkCodes,
 } from '../src/services/link.js'
 
-/** Minimal in-memory D1Database stub sufficient for the link.ts queries. */
+/**
+ * Minimal in-memory D1Database stub sufficient for the link.ts queries.
+ * Mirrors the SQL the service emits — when a query in `link.ts` changes the
+ * matching regex here must change too.
+ */
 function makeDb() {
   const linkCodes: Array<{
     code: string
@@ -22,32 +28,32 @@ function makeDb() {
   function bind(sql: string, params: unknown[]) {
     return {
       async first<T>(): Promise<T | null> {
+        // Atomic claim: DELETE ... RETURNING
         if (
-          /SELECT user_id, expires_at FROM link_codes WHERE code = \? AND channel = \?/i.test(
+          /DELETE FROM link_codes\s+WHERE code = \? AND channel = \?\s+AND julianday\(expires_at\) >= julianday\('now'\)\s+RETURNING user_id/is.test(
             sql,
           )
         ) {
           const [code, channel] = params as [string, string]
-          const row = linkCodes.find(
+          const idx = linkCodes.findIndex(
             (r) => r.code === code && r.channel === channel,
           )
-          if (!row) return null
-          return { user_id: row.user_id, expires_at: row.expires_at } as T
+          if (idx < 0) return null
+          if (Date.parse(linkCodes[idx]!.expires_at) < Date.now()) {
+            // Expired: SQLite would not return the row but would also not
+            // delete it (julianday filter excludes it). Mimic that: no delete.
+            return null
+          }
+          const row = linkCodes[idx]!
+          linkCodes.splice(idx, 1)
+          return { user_id: row.user_id } as T
         }
         return null
       },
       async run() {
+        // Upsert via ON CONFLICT(user_id, channel)
         if (
-          /DELETE FROM link_codes WHERE user_id = \? AND channel = \?/i.test(sql)
-        ) {
-          const [uid, ch] = params as [number, string]
-          for (let i = linkCodes.length - 1; i >= 0; i--) {
-            if (linkCodes[i].user_id === uid && linkCodes[i].channel === ch) {
-              linkCodes.splice(i, 1)
-            }
-          }
-        } else if (
-          /INSERT INTO link_codes \(code, user_id, channel, expires_at\) VALUES/i.test(
+          /INSERT INTO link_codes \(code, user_id, channel, expires_at\)\s+VALUES \(\?, \?, \?, \?\)\s+ON CONFLICT\(user_id, channel\) DO UPDATE/is.test(
             sql,
           )
         ) {
@@ -57,17 +63,33 @@ function makeDb() {
             string,
             string,
           ]
-          linkCodes.push({
-            code,
-            user_id,
-            channel,
-            expires_at,
-            created_at: new Date().toISOString(),
-          })
-        } else if (/DELETE FROM link_codes WHERE code = \?/i.test(sql)) {
-          const [code] = params as [string]
-          const idx = linkCodes.findIndex((r) => r.code === code)
-          if (idx >= 0) linkCodes.splice(idx, 1)
+          const existing = linkCodes.find(
+            (r) => r.user_id === user_id && r.channel === channel,
+          )
+          if (existing) {
+            existing.code = code
+            existing.expires_at = expires_at
+            existing.created_at = new Date().toISOString()
+          } else {
+            linkCodes.push({
+              code,
+              user_id,
+              channel,
+              expires_at,
+              created_at: new Date().toISOString(),
+            })
+          }
+          return { meta: { changes: 1 } }
+        }
+        if (
+          /DELETE FROM link_codes WHERE user_id = \? AND channel = \?/i.test(sql)
+        ) {
+          const [uid, ch] = params as [number, string]
+          for (let i = linkCodes.length - 1; i >= 0; i--) {
+            if (linkCodes[i]!.user_id === uid && linkCodes[i]!.channel === ch) {
+              linkCodes.splice(i, 1)
+            }
+          }
         } else if (
           /UPDATE users SET line_user_id = NULL,/i.test(sql)
         ) {
@@ -93,12 +115,14 @@ function makeDb() {
           const u = users.get(uid)
           if (u) u.telegram_chat_id = val
         } else if (
-          /DELETE FROM link_codes WHERE expires_at < datetime\('now'\)/i.test(sql)
+          /DELETE FROM link_codes WHERE julianday\(expires_at\) < julianday\('now'\)/i.test(
+            sql,
+          )
         ) {
           const now = Date.now()
           let removed = 0
           for (let i = linkCodes.length - 1; i >= 0; i--) {
-            if (Date.parse(linkCodes[i].expires_at) < now) {
+            if (Date.parse(linkCodes[i]!.expires_at) < now) {
               linkCodes.splice(i, 1)
               removed++
             }
@@ -114,14 +138,13 @@ function makeDb() {
     _users: users,
     _linkCodes: linkCodes,
     prepare(sql: string) {
+      const noParams = bind(sql, [])
       return {
         bind: (...params: unknown[]) => bind(sql, params),
+        // Direct .run() / .first() for parameterless statements.
+        run: noParams.run,
+        first: noParams.first,
       }
-    },
-    async batch(stmts: Array<{ run: () => Promise<unknown> }>) {
-      const out = []
-      for (const s of stmts) out.push(await s.run())
-      return out
     },
   }
 }
@@ -152,16 +175,16 @@ describe('link service', () => {
     expect(db._users.get(1).line_user_id).toBeNull()
   })
 
-  it('rejects expired codes and cleans them up', async () => {
+  it('rejects expired codes (atomic delete excludes them)', async () => {
     const link = await createLinkCode(db, 1, 'line')
-    // Forcibly expire it.
     db._linkCodes[0].expires_at = new Date(Date.now() - 1000).toISOString()
     const result = await claimLinkCode(db, link.code, 'line', 'U-x')
     expect(result.ok).toBe(false)
-    expect(db._linkCodes).toHaveLength(0)
+    // Row remains for purgeExpiredLinkCodes to sweep — claim is a no-op.
+    expect(db._linkCodes).toHaveLength(1)
   })
 
-  it('cannot reuse a claimed code', async () => {
+  it('cannot reuse a claimed code (atomic single-winner)', async () => {
     const link = await createLinkCode(db, 1, 'line')
     const r1 = await claimLinkCode(db, link.code, 'line', 'U-1')
     const r2 = await claimLinkCode(db, link.code, 'line', 'U-2')
@@ -176,12 +199,14 @@ describe('link service', () => {
     expect(r.ok).toBe(false)
   })
 
-  it('issuing a new code wipes the previous one', async () => {
+  it('issuing a new code replaces the previous one (UNIQUE user_id+channel)', async () => {
     const a = await createLinkCode(db, 1, 'line')
     const b = await createLinkCode(db, 1, 'line')
     expect(a.code).not.toBe(b.code)
     expect(db._linkCodes).toHaveLength(1)
     expect(db._linkCodes[0].code).toBe(b.code)
+    const r = await claimLinkCode(db, a.code, 'line', 'U-x')
+    expect(r.ok).toBe(false)
   })
 
   it('telegram codes use 16-char hex', async () => {
@@ -195,5 +220,36 @@ describe('link service', () => {
     await unlinkChannel(db, 1, 'line')
     expect(db._users.get(1).line_user_id).toBeNull()
     expect(db._linkCodes).toHaveLength(0)
+  })
+
+  it('revokePendingCode removes only the pending code, not the binding', async () => {
+    db._users.get(1).line_user_id = 'U-still-bound'
+    await createLinkCode(db, 1, 'line')
+    expect(db._linkCodes).toHaveLength(1)
+    await revokePendingCode(db, 1, 'line')
+    expect(db._linkCodes).toHaveLength(0)
+    expect(db._users.get(1).line_user_id).toBe('U-still-bound')
+  })
+
+  it('purgeExpiredLinkCodes deletes only expired rows (julianday compare)', async () => {
+    await createLinkCode(db, 1, 'line') // future
+    db._linkCodes.push({
+      code: 'OLD000',
+      user_id: 2,
+      channel: 'line',
+      expires_at: new Date(Date.now() - 60 * 1000).toISOString(),
+      created_at: new Date().toISOString(),
+    })
+    const removed = await purgeExpiredLinkCodes(db)
+    expect(removed).toBe(1)
+    expect(db._linkCodes).toHaveLength(1)
+    expect(db._linkCodes[0].code).not.toBe('OLD000')
+  })
+
+  it('isolates pending codes per (user, channel)', async () => {
+    await createLinkCode(db, 1, 'line')
+    await createLinkCode(db, 1, 'telegram')
+    await createLinkCode(db, 2, 'line')
+    expect(db._linkCodes).toHaveLength(3)
   })
 })

@@ -12,11 +12,11 @@ CREATE TABLE IF NOT EXISTS link_codes (
   channel TEXT NOT NULL CHECK (channel IN ('line', 'telegram')),
   expires_at TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  -- Only one pending code per (user, channel). New POST /link/<ch>/start replaces
+  -- the prior code via INSERT ... ON CONFLICT(user_id, channel) DO UPDATE.
+  UNIQUE (user_id, channel),
   FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
-
-CREATE INDEX IF NOT EXISTS idx_link_codes_user_channel
-  ON link_codes (user_id, channel);
 
 CREATE INDEX IF NOT EXISTS idx_link_codes_expires
   ON link_codes (expires_at);

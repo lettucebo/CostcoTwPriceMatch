@@ -1,8 +1,8 @@
 import type { D1Database } from '@cloudflare/workers-types'
 
 const CODE_TTL_SEC = 60 * 10 // 10 minutes
-const LINE_CODE_LEN = 6 // "LINE-XXXXXX"
-const TELEGRAM_CODE_LEN = 16 // hex; goes into the start_param
+const LINE_CODE_LEN = 6 // 6 base32-style chars (no prefix); user types this into the LINE bot
+const TELEGRAM_CODE_LEN = 16 // hex; embedded in the t.me/<bot>?start=<code> deep link
 
 export type LinkChannel = 'line' | 'telegram'
 
@@ -37,8 +37,11 @@ function randomBase32(len: number): string {
 }
 
 /**
- * Create a fresh link code for the given user/channel.
- * Replaces any prior unclaimed code for the same (user, channel) so users can re-issue.
+ * Create or refresh the pending link code for the given (user, channel).
+ *
+ * Uses `INSERT ... ON CONFLICT(user_id, channel) DO UPDATE` so the DB enforces the
+ * "one active code per (user, channel)" invariant atomically — concurrent retries
+ * cannot leave more than one pending row, and the prior code is invalidated.
  */
 export async function createLinkCode(
   db: D1Database,
@@ -51,15 +54,14 @@ export async function createLinkCode(
       : randomHex(TELEGRAM_CODE_LEN)
   const expiresAt = new Date(Date.now() + CODE_TTL_SEC * 1000).toISOString()
 
-  // Wipe any prior pending code for this user+channel so only the latest works.
-  await db
-    .prepare('DELETE FROM link_codes WHERE user_id = ? AND channel = ?')
-    .bind(userId, channel)
-    .run()
-
   await db
     .prepare(
-      'INSERT INTO link_codes (code, user_id, channel, expires_at) VALUES (?, ?, ?, ?)',
+      `INSERT INTO link_codes (code, user_id, channel, expires_at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(user_id, channel) DO UPDATE SET
+         code = excluded.code,
+         expires_at = excluded.expires_at,
+         created_at = datetime('now')`,
     )
     .bind(code, userId, channel, expiresAt)
     .run()
@@ -69,10 +71,14 @@ export async function createLinkCode(
 
 /**
  * Atomically consume a link code (if valid + unexpired) and bind the external id
- * onto the owning user. Returns true on success, false if the code is unknown,
- * expired, or for the wrong channel.
+ * onto the owning user. Returns true on success; false if the code is unknown,
+ * for the wrong channel, or expired.
  *
- * Called from webhook handlers after the request signature has been verified.
+ * The consume step is a single `DELETE ... RETURNING` so two concurrent webhook
+ * invocations cannot both succeed: only the connection that wins the row delete
+ * proceeds to update the user. `julianday(...)` is used for the expiry check so
+ * the comparison works regardless of `expires_at` storage format (ISO 8601 vs
+ * SQLite `datetime()` text).
  */
 export async function claimLinkCode(
   db: D1Database,
@@ -82,30 +88,38 @@ export async function claimLinkCode(
 ): Promise<{ ok: true; user_id: number } | { ok: false; reason: string }> {
   const row = await db
     .prepare(
-      `SELECT user_id, expires_at FROM link_codes WHERE code = ? AND channel = ?`,
+      `DELETE FROM link_codes
+       WHERE code = ? AND channel = ?
+         AND julianday(expires_at) >= julianday('now')
+       RETURNING user_id`,
     )
     .bind(code, channel)
-    .first<{ user_id: number; expires_at: string }>()
-  if (!row) return { ok: false, reason: 'unknown_code' }
-  if (Date.parse(row.expires_at) < Date.now()) {
-    await db.prepare('DELETE FROM link_codes WHERE code = ?').bind(code).run()
-    return { ok: false, reason: 'expired' }
-  }
+    .first<{ user_id: number }>()
+  if (!row) return { ok: false, reason: 'invalid_or_expired' }
 
   const column = channel === 'line' ? 'line_user_id' : 'telegram_chat_id'
-  // Update + delete in a single batch so the code cannot be claimed twice.
-  await db.batch([
-    db
-      .prepare(
-        `UPDATE users SET ${column} = ?, updated_at = datetime('now') WHERE id = ?`,
-      )
-      .bind(externalId, row.user_id),
-    db.prepare('DELETE FROM link_codes WHERE code = ?').bind(code),
-  ])
+  await db
+    .prepare(
+      `UPDATE users SET ${column} = ?, updated_at = datetime('now') WHERE id = ?`,
+    )
+    .bind(externalId, row.user_id)
+    .run()
   return { ok: true, user_id: row.user_id }
 }
 
-/** Remove the binding for a channel on a user. */
+/** Remove the pending code (if any) for this (user, channel) without unlinking. */
+export async function revokePendingCode(
+  db: D1Database,
+  userId: number,
+  channel: LinkChannel,
+): Promise<void> {
+  await db
+    .prepare('DELETE FROM link_codes WHERE user_id = ? AND channel = ?')
+    .bind(userId, channel)
+    .run()
+}
+
+/** Remove the binding for a channel on a user. Also clears any pending codes. */
 export async function unlinkChannel(
   db: D1Database,
   userId: number,
@@ -126,8 +140,13 @@ export async function unlinkChannel(
 
 /** Sweep expired codes (call from cron occasionally; not critical). */
 export async function purgeExpiredLinkCodes(db: D1Database): Promise<number> {
+  // julianday() parses both ISO 8601 ("2026-05-05T16:10:00.000Z") and SQLite
+  // datetime() output ("2026-05-05 16:10:00"), so this works regardless of the
+  // string format chosen at INSERT time.
   const res = await db
-    .prepare("DELETE FROM link_codes WHERE expires_at < datetime('now')")
+    .prepare(
+      "DELETE FROM link_codes WHERE julianday(expires_at) < julianday('now')",
+    )
     .run()
   return res.meta.changes ?? 0
 }

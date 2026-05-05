@@ -57,10 +57,19 @@ describe('constantTimeEqual', () => {
   it('returns true for equal strings', () => {
     expect(constantTimeEqual('abc123', 'abc123')).toBe(true)
   })
-  it('returns false for different strings', () => {
+  it('returns false for different strings of equal length', () => {
     expect(constantTimeEqual('abc123', 'abc124')).toBe(false)
   })
-  it('returns false for differing lengths (constant time)', () => {
+  it('returns false for differing lengths without short-circuit', () => {
+    // We cannot test wall-clock equivalence in a unit test; we just assert the
+    // result is correct for length-mismatched inputs (the implementation no
+    // longer early-returns on length, satisfying review feedback).
     expect(constantTimeEqual('a', 'aa')).toBe(false)
+    expect(constantTimeEqual('abcdef', 'abcdefghij')).toBe(false)
+    expect(constantTimeEqual('', 'x')).toBe(false)
+    expect(constantTimeEqual('x', '')).toBe(false)
+  })
+  it('returns true for two empty strings', () => {
+    expect(constantTimeEqual('', '')).toBe(true)
   })
 })

@@ -5,7 +5,11 @@ import {
   UpdateNotificationSettingsSchema,
   type UserRow,
 } from '@costco/shared'
-import { createLinkCode, unlinkChannel } from '../services/link.js'
+import {
+  createLinkCode,
+  revokePendingCode,
+  unlinkChannel,
+} from '../services/link.js'
 
 export const meRouter = new Hono<AppContext>()
 
@@ -91,6 +95,16 @@ meRouter.delete('/link/line', async (c) => {
 })
 
 /**
+ * Cancel a pending LINE link code (the user clicked "取消" or believes the code
+ * was exposed). Idempotent: 204-equivalent if no pending code exists.
+ */
+meRouter.delete('/link/line/start', async (c) => {
+  const userId = c.get('userId')
+  await revokePendingCode(c.env.DB, userId, 'line')
+  return c.json({ ok: true })
+})
+
+/**
  * Begin Telegram link flow: returns a `t.me/<bot>?start=<code>` deep link.
  * When the user clicks it, Telegram delivers `/start <code>` to our webhook,
  * which authenticates via the secret-token header and atomically binds the chat.
@@ -114,6 +128,13 @@ meRouter.post('/link/telegram/start', async (c) => {
 meRouter.delete('/link/telegram', async (c) => {
   const userId = c.get('userId')
   await unlinkChannel(c.env.DB, userId, 'telegram')
+  return c.json({ ok: true })
+})
+
+/** Cancel a pending Telegram link code. Same semantics as LINE. */
+meRouter.delete('/link/telegram/start', async (c) => {
+  const userId = c.get('userId')
+  await revokePendingCode(c.env.DB, userId, 'telegram')
   return c.json({ ok: true })
 })
 

@@ -66,7 +66,13 @@ webhookRouter.post('/telegram', async (c) => {
   if (!constantTimeEqual(provided, env.TELEGRAM_WEBHOOK_SECRET)) {
     return c.text('bad secret', 401)
   }
-  const update = (await c.req.json()) as TelegramUpdate
+  let update: TelegramUpdate
+  try {
+    update = (await c.req.json()) as TelegramUpdate
+  } catch {
+    // Malformed body — ack with 200 so Telegram does not retry the bad payload.
+    return c.json({ ok: true })
+  }
   const msg = update.message
   if (!msg?.text || !msg.from || !msg.chat) return c.json({ ok: true })
 
@@ -127,10 +133,20 @@ async function verifyLineSignature(
   return constantTimeEqual(expected, providedBase64)
 }
 
+/**
+ * Constant-time string equality. Iterates over `max(a.length, b.length)` and
+ * folds the length difference into the diff so the running time does not depend
+ * on which characters match. Returns false on length mismatch (correct), but
+ * does the work either way to avoid leaking the length via side-channel timing.
+ */
 function constantTimeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false
-  let diff = 0
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  const len = Math.max(a.length, b.length)
+  let diff = a.length ^ b.length
+  for (let i = 0; i < len; i++) {
+    const ca = i < a.length ? a.charCodeAt(i) : 0
+    const cb = i < b.length ? b.charCodeAt(i) : 0
+    diff |= ca ^ cb
+  }
   return diff === 0
 }
 
