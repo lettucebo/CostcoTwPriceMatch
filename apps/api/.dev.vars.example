@@ -1,0 +1,18 @@
+# Worker secrets — set via `wrangler secret put <NAME>`
+# These are LOCAL DEV ONLY. Production secrets live in Cloudflare.
+# Copy this to `.dev.vars` in apps/api/ for local development.
+
+GOOGLE_CLIENT_ID="REPLACE_ME.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET="REPLACE_ME"
+JWT_SECRET="REPLACE_ME_with_openssl_rand_hex_32"
+INTERNAL_BEARER="REPLACE_ME_with_openssl_rand_hex_32"
+RESEND_API_KEY="re_REPLACE_ME"
+
+# Optional, for issue #11
+LINE_CHANNEL_ACCESS_TOKEN=""
+TELEGRAM_BOT_TOKEN=""
+
+# Optional, for issue #14
+VAPID_PUBLIC_KEY=""
+VAPID_PRIVATE_KEY=""
+VAPID_SUBJECT="mailto:you@example.com"
