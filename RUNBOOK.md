@@ -4,12 +4,14 @@
 
 ```bash
 pnpm install
-cp apps/api/.dev.vars.example apps/api/.dev.vars   # then edit
-cp apps/web/.env.example      apps/web/.env.local  # then edit (usually empty)
+cp src/apps/api/.dev.vars.example src/apps/api/.dev.vars   # then edit
+cp src/apps/web/.env.example      src/apps/web/.env.local  # then edit (usually empty)
 
 pnpm --filter @costco/api run db:migrate:local
 pnpm dev   # runs web (5173) + api (8787) in parallel
 ```
+
+> **pnpm only.** A `preinstall` guard blocks `npm`/`yarn` via `only-allow`. Use `corepack enable` or install pnpm 9 directly.
 
 ## Tests
 
@@ -26,29 +28,32 @@ Current count: **28 tests** (jwt × 3, compute-days × 6, parser × 10, client �
 
 ### One-time setup
 
-1. **D1 database** — `wrangler d1 create costco-tw-price-match`
-   - Copy the printed `database_id` into `apps/api/wrangler.jsonc`.
-2. **KV namespace** — `wrangler kv namespace create KV_CACHE`
-   - Copy the printed `id` into `apps/api/wrangler.jsonc`.
+All `wrangler` invocations go through `pnpm exec` so they use the version pinned
+in `src/apps/api/package.json`.
+
+1. **D1 database** — `pnpm --filter @costco/api exec wrangler d1 create costco-tw-price-match`
+   - Copy the printed `database_id` into `src/apps/api/wrangler.jsonc`.
+2. **KV namespace** — `pnpm --filter @costco/api exec wrangler kv namespace create KV_CACHE`
+   - Copy the printed `id` into `src/apps/api/wrangler.jsonc`.
 3. **Workers AI binding** is already declared in `wrangler.jsonc`, no setup needed.
 4. **Apply migrations remotely**:
    ```bash
    pnpm --filter @costco/api run db:migrate:remote
    ```
-5. **Set Worker secrets**:
+5. **Set Worker secrets** (run from the api package so `wrangler.jsonc` is found):
    ```bash
-   cd apps/api
-   wrangler secret put GOOGLE_CLIENT_ID
-   wrangler secret put GOOGLE_CLIENT_SECRET
-   wrangler secret put JWT_SECRET                 # openssl rand -hex 32
-   wrangler secret put INTERNAL_BEARER            # openssl rand -hex 32
-   wrangler secret put RESEND_API_KEY             # from resend.com
+   cd src/apps/api
+   pnpm exec wrangler secret put GOOGLE_CLIENT_ID
+   pnpm exec wrangler secret put GOOGLE_CLIENT_SECRET
+   pnpm exec wrangler secret put JWT_SECRET                 # openssl rand -hex 32
+   pnpm exec wrangler secret put INTERNAL_BEARER            # openssl rand -hex 32
+   pnpm exec wrangler secret put RESEND_API_KEY             # from resend.com
    # Optional channels:
-   wrangler secret put LINE_CHANNEL_ACCESS_TOKEN
-   wrangler secret put TELEGRAM_BOT_TOKEN
-   wrangler secret put VAPID_PUBLIC_KEY           # from `npx web-push generate-vapid-keys`
-   wrangler secret put VAPID_PRIVATE_KEY
-   wrangler secret put VAPID_SUBJECT              # mailto:you@example.com
+   pnpm exec wrangler secret put LINE_CHANNEL_ACCESS_TOKEN
+   pnpm exec wrangler secret put TELEGRAM_BOT_TOKEN
+   pnpm exec wrangler secret put VAPID_PUBLIC_KEY           # from `pnpm dlx web-push generate-vapid-keys`
+   pnpm exec wrangler secret put VAPID_PRIVATE_KEY
+   pnpm exec wrangler secret put VAPID_SUBJECT              # mailto:you@example.com
    ```
 6. **Google OAuth client** at <https://console.cloud.google.com/apis/credentials>
    - Authorized origins: `https://<project>.pages.dev`, `http://localhost:5173`
@@ -59,11 +64,11 @@ Current count: **28 tests** (jwt × 3, compute-days × 6, parser × 10, client �
 
 ```bash
 # Worker:
-cd apps/api && wrangler deploy
+pnpm --filter @costco/api run deploy
 
 # Pages: connect repo at https://dash.cloudflare.com/?to=/:account/pages,
 #   build command:    pnpm --filter @costco/web run build
-#   build output dir: apps/web/dist
+#   build output dir: src/apps/web/dist
 ```
 
 ## Manual smoke tests
@@ -93,9 +98,9 @@ Logs visible in Cloudflare dashboard → Workers → Logs (real-time tail) or un
 ### Inspect D1 data
 
 ```bash
-wrangler d1 execute DB --remote --command "SELECT * FROM scrape_jobs ORDER BY id DESC LIMIT 5"
-wrangler d1 execute DB --remote --command "SELECT COUNT(*) FROM products"
-wrangler d1 execute DB --remote --command "SELECT * FROM notifications_log ORDER BY id DESC LIMIT 10"
+pnpm --filter @costco/api exec wrangler d1 execute DB --remote --command "SELECT * FROM scrape_jobs ORDER BY id DESC LIMIT 5"
+pnpm --filter @costco/api exec wrangler d1 execute DB --remote --command "SELECT COUNT(*) FROM products"
+pnpm --filter @costco/api exec wrangler d1 execute DB --remote --command "SELECT * FROM notifications_log ORDER BY id DESC LIMIT 10"
 ```
 
 ### Re-run a day's snapshot
@@ -108,7 +113,7 @@ curl -X POST -H "Authorization: Bearer $INTERNAL_BEARER" https://<worker>.worker
 
 ### Stop the cron
 
-Edit `apps/api/wrangler.jsonc`, remove `triggers.crons`, redeploy.
+Edit `src/apps/api/wrangler.jsonc`, remove `triggers.crons`, redeploy.
 
 ## Risk / failure modes
 

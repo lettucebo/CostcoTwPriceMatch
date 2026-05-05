@@ -1,22 +1,22 @@
 ---
-applyTo: "migrations/**/*.sql"
-description: "Use when adding or editing D1 SQL migrations under migrations/. Enforces the project's schema conventions: filename ordering, idempotent DDL, foreign keys, indexes, datetime defaults, and the 'no destructive prod migration' rule."
+applyTo: "src/migrations/**/*.sql"
+description: "Use when adding or editing D1 SQL migrations under src/migrations/. Enforces the project's schema conventions: filename ordering, idempotent DDL, foreign keys, indexes, datetime defaults, and the 'no destructive prod migration' rule."
 ---
 
 # D1 Migration Checklist
 
-Before saving any new file under [`migrations/`](../../migrations/), confirm every item below.
+Before saving any new file under [`src/migrations/`](../../src/migrations/), confirm every item below.
 
 ## Filename
 
 - Format: `NNNN_short_description.sql` — 4-digit zero-padded prefix, snake_case description.
 - The number must be **strictly greater** than every existing file. Check with:
   ```bash
-  Get-ChildItem migrations/*.sql | Sort-Object Name | Select-Object -Last 1
+  Get-ChildItem src/migrations/*.sql | Sort-Object Name | Select-Object -Last 1
   ```
 - One purpose per migration; do not pack unrelated changes together.
 
-## DDL conventions (match [`0001_initial.sql`](../../migrations/0001_initial.sql))
+## DDL conventions (match [`0001_initial.sql`](../../src/migrations/0001_initial.sql))
 
 - **Idempotent**: every statement uses `CREATE TABLE IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS`. Never bare `CREATE`.
 - **Primary key**: `INTEGER PRIMARY KEY AUTOINCREMENT` for surrogate ids; otherwise the natural key as `TEXT PRIMARY KEY` (e.g., `products.code`).
@@ -29,7 +29,7 @@ Before saving any new file under [`migrations/`](../../migrations/), confirm eve
 
 ## Type alignment
 
-- For every table you add or modify, **also update the matching `*Row` interface** in [`packages/shared/src/types.ts`](../../packages/shared/src/types.ts).
+- For every table you add or modify, **also update the matching `*Row` interface** in [`src/packages/shared/src/types.ts`](../../src/packages/shared/src/types.ts).
 - Keep column order, nullability, and `0 | 1` literal types consistent — the rest of the codebase uses `db.prepare(...).first<UserRow>()` style and silently mistypes if the interface drifts.
 
 ## Production safety
@@ -62,6 +62,6 @@ This is **idempotent** thanks to `IF NOT EXISTS`, but Wrangler tracks applied fi
 - ❌ `CREATE TABLE foo (...)` without `IF NOT EXISTS`.
 - ❌ `created_at DATETIME DEFAULT CURRENT_TIMESTAMP` — use TEXT + `datetime('now')` for full ISO-8601 with TZ-aware behavior.
 - ❌ `BOOLEAN`, `BIGINT`, `JSON` types — D1 ignores them; pick `INTEGER` / `TEXT`.
-- ❌ Adding a column without updating the matching `*Row` interface in `packages/shared/src/types.ts`.
+- ❌ Adding a column without updating the matching `*Row` interface in `src/packages/shared/src/types.ts`.
 - ❌ Editing an already-applied migration file. Always add a new one (`0003_*.sql`).
-- ❌ Putting `INSERT INTO ... seed data` for non-test environments. Seeds belong in a script under `apps/api/scripts/`.
+- ❌ Putting `INSERT INTO ... seed data` for non-test environments. Seeds belong in a script under `src/apps/api/scripts/`.

@@ -15,7 +15,7 @@ importers:
         specifier: ^5.6.3
         version: 5.9.3
 
-  apps/api:
+  src/apps/api:
     dependencies:
       '@costco/scraper':
         specifier: workspace:*
@@ -43,7 +43,7 @@ importers:
         specifier: ^3.99.0
         version: 3.114.17(@cloudflare/workers-types@4.20260505.1)
 
-  apps/web:
+  src/apps/web:
     dependencies:
       '@costco/shared':
         specifier: workspace:*
@@ -113,7 +113,7 @@ importers:
         specifier: ^7.3.0
         version: 7.4.1
 
-  packages/scraper:
+  src/packages/scraper:
     dependencies:
       zod:
         specifier: ^3.23.8
@@ -123,7 +123,7 @@ importers:
         specifier: ^2.1.4
         version: 2.1.9(@types/node@22.19.17)(terser@5.46.2)
 
-  packages/shared:
+  src/packages/shared:
     dependencies:
       zod:
         specifier: ^3.23.8

@@ -16,26 +16,31 @@
 ## Repo layout
 
 ```
-apps/
-  web/        # React + Vite SPA (Cloudflare Pages)
-  api/        # Hono Worker + D1 (Cloudflare Workers)
-packages/
-  shared/     # Shared TS types + Zod schemas
-  scraper/    # Costco TW REST API client + tests
-migrations/   # D1 SQL migrations
+src/
+  apps/
+    web/        # React + Vite SPA (Cloudflare Pages)
+    api/        # Hono Worker + D1 (Cloudflare Workers)
+  packages/
+    shared/     # Shared TS types + Zod schemas
+    scraper/    # Costco TW REST API client + tests
+  migrations/   # D1 SQL migrations
+  tsconfig.base.json
 ```
+
+All source-related code lives under `src/`. Workspace tooling (`package.json`,
+`pnpm-workspace.yaml`, `pnpm-lock.yaml`) stays at the repo root.
 
 ## Local dev
 
 ### One-time
 
 ```bash
-# Install pnpm 9+ and Node 20+
+# Install pnpm 9+ and Node 20+ (this repo is pnpm-only; npm/yarn will be blocked)
 pnpm install
 
 # Copy env templates
-cp apps/api/.dev.vars.example apps/api/.dev.vars
-cp apps/web/.env.example      apps/web/.env.local
+cp src/apps/api/.dev.vars.example src/apps/api/.dev.vars
+cp src/apps/web/.env.example      src/apps/web/.env.local
 # Then edit those files with real values
 
 # Create local D1 + apply migrations
@@ -59,36 +64,39 @@ pnpm typecheck    # tsc on every package
 
 ## Deploy
 
+All `wrangler` invocations go through `pnpm exec` so they use the version pinned in
+`src/apps/api/package.json`.
+
 ```bash
 # 1. Provision D1 + KV (one-time)
-wrangler d1 create costco-tw-price-match
-wrangler kv namespace create KV_CACHE
-# Update apps/api/wrangler.jsonc with the IDs printed.
+pnpm --filter @costco/api exec wrangler d1 create costco-tw-price-match
+pnpm --filter @costco/api exec wrangler kv namespace create KV_CACHE
+# Update src/apps/api/wrangler.jsonc with the IDs printed.
 
 # 2. Apply migrations to remote D1
 pnpm --filter @costco/api run db:migrate:remote
 
-# 3. Set secrets
-cd apps/api
-wrangler secret put GOOGLE_CLIENT_ID
-wrangler secret put GOOGLE_CLIENT_SECRET
-wrangler secret put JWT_SECRET
-wrangler secret put INTERNAL_BEARER
-wrangler secret put RESEND_API_KEY
+# 3. Set secrets (run from the api package so wrangler.jsonc is picked up)
+cd src/apps/api
+pnpm exec wrangler secret put GOOGLE_CLIENT_ID
+pnpm exec wrangler secret put GOOGLE_CLIENT_SECRET
+pnpm exec wrangler secret put JWT_SECRET
+pnpm exec wrangler secret put INTERNAL_BEARER
+pnpm exec wrangler secret put RESEND_API_KEY
 # Optional:
-wrangler secret put LINE_CHANNEL_ACCESS_TOKEN
-wrangler secret put TELEGRAM_BOT_TOKEN
-wrangler secret put VAPID_PUBLIC_KEY
-wrangler secret put VAPID_PRIVATE_KEY
-wrangler secret put VAPID_SUBJECT
+pnpm exec wrangler secret put LINE_CHANNEL_ACCESS_TOKEN
+pnpm exec wrangler secret put TELEGRAM_BOT_TOKEN
+pnpm exec wrangler secret put VAPID_PUBLIC_KEY
+pnpm exec wrangler secret put VAPID_PRIVATE_KEY
+pnpm exec wrangler secret put VAPID_SUBJECT
 
 # 4. Deploy Worker
-wrangler deploy
+pnpm --filter @costco/api run deploy
 
 # 5. Deploy Pages (via GitHub integration is easiest)
 #    Connect lettucebo/CostcoTwPriceMatch in Cloudflare Pages,
 #    build command:    pnpm --filter @costco/web run build
-#    build output dir: apps/web/dist
+#    build output dir: src/apps/web/dist
 ```
 
 ## Costco TW REST API (the data source)
