@@ -15,7 +15,8 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # Wrangler v4 requires Node >= 22; pin to 22 LTS.
+          node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
@@ -24,3 +25,14 @@ jobs:
         env:
           # Required so vite-plugin-pwa precaches without warnings.
           NODE_ENV: production
+      # Catch any Worker-incompatible API change before merge (e.g. stray
+      # `import 'node:crypto'`). Doesn't actually deploy — outdir is local.
+      - name: Wrangler dry-run deploy (api)
+        run: |
+          pnpm --filter @costco/api exec wrangler deploy \
+            --dry-run \
+            --outdir .wrangler/dry-run
+        env:
+          # Wrangler reads vars from wrangler.jsonc; secrets aren't needed for
+          # dry-run because nothing actually deploys.
+          CLOUDFLARE_API_TOKEN: dry-run-no-token-needed

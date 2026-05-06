@@ -15,7 +15,17 @@ export interface PriceMatchResult {
   errors: number
 }
 
-const DAILY_DIGEST_LIMIT = 5
+const DEFAULT_DAILY_DIGEST_LIMIT = 5
+
+/** Read PRICE_MATCH_DAILY_CAP env var (string), clamp to [1, 100], default 5. */
+function dailyDigestLimit(env: Env): number {
+  const raw = (env as unknown as { PRICE_MATCH_DAILY_CAP?: string })
+    .PRICE_MATCH_DAILY_CAP
+  if (raw == null) return DEFAULT_DAILY_DIGEST_LIMIT
+  const n = Number(raw)
+  if (!Number.isFinite(n) || n < 1) return DEFAULT_DAILY_DIGEST_LIMIT
+  return Math.min(Math.floor(n), 100)
+}
 
 /**
  * Run after the daily fetch.
@@ -24,7 +34,7 @@ const DAILY_DIGEST_LIMIT = 5
  * 2) For active items where current_price < purchase_price and within 30 days,
  *    mark as 'price_match_eligible' and queue a notification.
  * 3) Group eligible items per user into a single digest email per channel,
- *    capped at DAILY_DIGEST_LIMIT items per user/day.
+ *    capped at PRICE_MATCH_DAILY_CAP items per user/day (default 5).
  * 4) De-duplicate against notifications_log so we don't re-notify the same
  *    (item, current_price) tuple.
  */
@@ -121,11 +131,12 @@ export async function runPriceMatch(env: Env): Promise<PriceMatchResult> {
     )
     const alreadySent = await loadAlreadySentKeys(env, userId, candidateKeys)
 
+    const dailyCap = dailyDigestLimit(env)
     const newItems = items
       .filter(
         (r) => !alreadySent.has(priceMatchDedupKey(r.id, r.current_price)),
       )
-      .slice(0, DAILY_DIGEST_LIMIT)
+      .slice(0, dailyCap)
     if (newItems.length === 0) continue
 
     const payload: NotifyPayload = {

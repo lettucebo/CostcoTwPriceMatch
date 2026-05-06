@@ -60,6 +60,16 @@ export function AddItemDialog({ onClose, onAdded }: Props) {
     setErr(null)
     setBusy(true)
     setOcrItems(null)
+    // Workers AI Llama 3.2 Vision rejects images > 8 MB with a 413; fail fast
+    // here so the user gets immediate feedback instead of a long upload.
+    const MAX_BYTES = 8 * 1024 * 1024
+    if (file.size > MAX_BYTES) {
+      setErr(
+        `圖片太大 (${(file.size / 1024 / 1024).toFixed(1)} MB)，上限 8 MB。請壓縮後再試。`,
+      )
+      setBusy(false)
+      return
+    }
     try {
       const fd = new FormData()
       fd.append('image', file)

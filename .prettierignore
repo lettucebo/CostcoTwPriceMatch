@@ -1,0 +1,23 @@
+# Build outputs
+dist/
+build/
+.wrangler/
+coverage/
+node_modules/
+.pnpm-store/
+
+# Generated
+pnpm-lock.yaml
+src/apps/web/dist/
+
+# Binary / can't format
+*.png
+*.jpg
+*.jpeg
+*.ico
+*.svg
+*.woff2
+*.pdf
+
+# Migrations are SQL — let SQLite/D1 dictate format
+src/migrations/*.sql

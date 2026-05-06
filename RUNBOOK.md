@@ -12,6 +12,8 @@ pnpm dev   # runs web (5173) + api (8787) in parallel
 ```
 
 > **pnpm only.** A `preinstall` guard blocks `npm`/`yarn` via `only-allow`. Use `corepack enable` or install pnpm 9 directly.
+>
+> **Node ≥ 22** is required (Wrangler v4 minimum). CI pins to Node 22 LTS.
 
 ## Tests
 
@@ -57,6 +59,10 @@ in `src/apps/api/package.json`.
    pnpm exec wrangler secret put VAPID_PUBLIC_KEY           # from `pnpm dlx web-push generate-vapid-keys`
    pnpm exec wrangler secret put VAPID_PRIVATE_KEY
    pnpm exec wrangler secret put VAPID_SUBJECT              # mailto:you@example.com
+   # Optional operational alerts (#37)
+   pnpm exec wrangler secret put ADMIN_ALERT_EMAIL          # your email — receives cron failure alerts
+   # CRON_ALERT_THRESHOLD is a regular var (not a secret); set in wrangler.jsonc
+   # under "vars" if you want to override the default of 5. Set to "0" to disable.
    ```
 6. **Google OAuth client** at <https://console.cloud.google.com/apis/credentials>
    - Authorized origins: `https://<project>.pages.dev`, `http://localhost:5173`

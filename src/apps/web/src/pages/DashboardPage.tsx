@@ -13,6 +13,10 @@ export function DashboardPage() {
   const [showAdd, setShowAdd] = useState(false)
   const [sort, setSort] = useState<SortKey>('recent')
   const [filter, setFilter] = useState<Filter>('all')
+  // Track per-item refresh state so clicking refresh on one card does not
+  // disable / relabel every other card's refresh button. Previously we used
+  // refresh.isPending on a shared mutation, which leaked into all cards.
+  const [refreshingIds, setRefreshingIds] = useState<Set<number>>(new Set())
 
   const list = useQuery({
     queryKey: ['watchlist'],
@@ -27,7 +31,17 @@ export function DashboardPage() {
     mutationFn: async (id: number) => {
       await api(`/api/watchlist/${id}/refresh`, { method: 'POST' })
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['watchlist'] }),
+    onMutate: (id) => {
+      setRefreshingIds((prev) => new Set(prev).add(id))
+    },
+    onSettled: (_data, _err, id) => {
+      setRefreshingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+      qc.invalidateQueries({ queryKey: ['watchlist'] })
+    },
   })
   const remove = useMutation({
     mutationFn: async (id: number) => {
@@ -111,7 +125,7 @@ export function DashboardPage() {
               onDelete={() => {
                 if (confirm('確定要移除此追蹤項目？')) remove.mutate(it.id)
               }}
-              refreshing={refresh.isPending}
+              refreshing={refreshingIds.has(it.id)}
             />
           </li>
         ))}

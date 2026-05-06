@@ -29,6 +29,22 @@ export interface Env {
   VAPID_PUBLIC_KEY?: string
   VAPID_PRIVATE_KEY?: string
   VAPID_SUBJECT?: string
+  /**
+   * Email address that receives operational alerts (cron failures, fetch
+   * errors above threshold). Optional — if unset, alerts are logged only.
+   */
+  ADMIN_ALERT_EMAIL?: string
+  /**
+   * Cron error count above which we send an alert email to ADMIN_ALERT_EMAIL.
+   * Default 5. Set to "0" to disable alerts entirely. Stored as string because
+   * Worker `vars` are always strings.
+   */
+  CRON_ALERT_THRESHOLD?: string
+  /**
+   * Max items per user per day in the price-match digest. Default 5.
+   * Stored as string (Worker var) — clamped to [1, 100] at read time.
+   */
+  PRICE_MATCH_DAILY_CAP?: string
 }
 
 export interface AppVariables {

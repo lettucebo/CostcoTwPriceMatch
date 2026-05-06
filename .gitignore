@@ -33,6 +33,11 @@ pnpm-debug.log*
 coverage/
 .vitest-cache/
 
+# Playwright
+test-results/
+playwright-report/
+.playwright/
+
 # Misc
 .tmp-*
 .tmp/
