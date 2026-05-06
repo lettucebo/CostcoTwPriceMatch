@@ -4,8 +4,8 @@ import { defineConfig, devices } from '@playwright/test'
  * Playwright config for end-to-end tests against the locally-built dev stack.
  *
  * Usage:
- *   pnpm dev                           # starts api (8787) + web (5173) in parallel
- *   pnpm --filter @costco/e2e test     # runs the smoke suite
+ *   pnpm dev                               # starts api (8787) + web (5173) in parallel
+ *   pnpm --filter @costco/e2e run e2e      # runs the smoke suite
  *
  * CI does NOT yet run Playwright (chromium download + dev-server orchestration
  * is heavy for the CF Free plan). This is the scaffold for future work tracked

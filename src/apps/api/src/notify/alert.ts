@@ -48,11 +48,20 @@ export async function sendCronAlert(
   }
 }
 
-/** Get the configured threshold; default 5; 0 disables. */
+/**
+ * Get the configured threshold; default 5; 0 disables.
+ *
+ * The value is read from a Worker `vars` string and floored to a non-negative
+ * integer so users supplying `"0.5"` don't accidentally end up alerting on
+ * every single error (errors >= 0.5 is always true). Capped at 1000 to prevent
+ * accidentally-huge values silently disabling alerts.
+ */
 export function alertThreshold(env: Env): number {
   const raw = env.CRON_ALERT_THRESHOLD
-  const n = raw == null ? 5 : Number(raw)
-  return Number.isFinite(n) && n >= 0 ? n : 5
+  if (raw == null) return 5
+  const n = Number(raw)
+  if (!Number.isFinite(n) || n < 0) return 5
+  return Math.min(Math.floor(n), 1000)
 }
 
 function escapeHtml(s: string): string {

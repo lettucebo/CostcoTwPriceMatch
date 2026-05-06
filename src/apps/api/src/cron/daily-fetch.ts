@@ -165,18 +165,18 @@ export async function runDailyFetch(
   }
 
   // Alert the maintainer when the cron run accumulated too many errors.
+  // Only trigger for actual cron-driven runs — manual invocations via
+  // /api/internal/cron/daily-fetch are typically debugging or maintenance
+  // and would otherwise spam the alert channel. Errors are still recorded in
+  // scrape_jobs.meta either way.
   // Best-effort — failures here never propagate.
   const threshold = alertThreshold(env)
-  if (threshold > 0 && errors >= threshold) {
-    await sendCronAlert(
-      env,
-      `Daily cron had ${errors} error(s)`,
-      {
-        ...result,
-        cron: opts.cron,
-        threshold,
-      },
-    )
+  if (opts.trigger === 'cron' && threshold > 0 && errors >= threshold) {
+    await sendCronAlert(env, `Daily cron had ${errors} error(s)`, {
+      ...result,
+      cron: opts.cron,
+      threshold,
+    })
   }
 
   return result
